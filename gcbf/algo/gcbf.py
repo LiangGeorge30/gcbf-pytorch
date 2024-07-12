@@ -159,7 +159,7 @@ class GCBF(Algorithm):
             graphs = Batch.from_data_list(graph_list)
             graphs.edge_attr.requires_grad = True
             h = self.cbf(graphs)
-            actions = self.actor(graphs)
+            actions = self.actor(graphs) # TODO: control input
 
             # calculate loss
             eps = self.params['eps']

@@ -131,6 +131,8 @@ def eval_ctrl_epi(
         make_video: bool = True,
         plot_edge: bool = True,
         verbose: bool = True,
+        scenario_id: int = None,
+        goals_path: Optional[Union[int, str]] = None
 ) -> Tuple[float, float, Tuple[Union[Tuple[np.array, ...], np.array]], dict]:
     """
     Evaluate the controller for one episode.
@@ -149,6 +151,8 @@ def eval_ctrl_epi(
         if true, plot the edge of the agent graph
     verbose: bool,
         if true, print the evaluation information
+    scenario_id: int,
+        if not None, use this scenario
 
     Returns
     -------
@@ -165,7 +169,7 @@ def eval_ctrl_epi(
     epi_length = 0.
     epi_reward = 0.
     video = []
-    data = env.reset()
+    data = env.reset(goals_path=goals_path, scenario_id=scenario_id)
     t = 0
     # safe = 1.
     reach = torch.zeros(env.num_agents).bool()
@@ -174,6 +178,7 @@ def eval_ctrl_epi(
     safe_data = []
     pbar = tqdm()
     states = []
+    collision_counts = torch.zeros(env.num_agents, dtype=torch.int, device=env.device)  # To track collision counts
     while True:
         data.update(Data(u_ref=env.u_ref(data)))
         action = controller(data)
@@ -192,6 +197,7 @@ def eval_ctrl_epi(
             safe[info['collision']] = False
             safe_data.append(safe.unsqueeze(0))
             # safe = safe and info['safe']
+            collision_counts[info['collision']] += 1  # Increment collision count for the collided agents
         if 'reach' in info.keys():
             reach = info['reach'].cpu()
 
@@ -216,11 +222,22 @@ def eval_ctrl_epi(
             break
 
     states = torch.cat(states, dim=0)
+    
+    # Calculate travel distance
+    trajectory = states[:, :, :2]
+    travel_distance = torch.norm(torch.diff(trajectory, dim=0, prepend=trajectory[0, :, :][None, ...]), p=2, dim=-1)
+    travel_distance = torch.cumsum(travel_distance, dim=0)
+    total_travel_distance = travel_distance[-1, :].sum().item()  # Total travel distance for all agents
 
+    # Calculate collision rate
+    total_collisions = collision_counts.sum().item()
+    collision_rate = total_collisions / total_travel_distance if total_travel_distance > 0 else float('inf')
+    
     return epi_reward, epi_length, tuple(video), {'safe': safe_agent.sum().item() / env.num_agents,
                                                   'reach': reach.sum().item() / env.num_agents,
                                                   'success': success_agent.sum().item() / env.num_agents,
-                                                  'states': states}
+                                                  'states': states,
+                                                  'collision_rate': collision_rate}
 
 
 def plot_cbf_contour(

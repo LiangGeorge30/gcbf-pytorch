@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import cvxpy as cp
+import os
 import pybullet as p
 import pybullet_data
 
@@ -381,7 +382,7 @@ class DubinsCar(SimpleCar):
         self._obs[:, 2:] = obs_vel
         return obs_pos
 
-    def reset(self) -> Data:
+    def reset(self, goals_path=None, scenario_id=None) -> Data:
         self._t = 0
 
         side_length = self._params['area_size']
@@ -436,6 +437,29 @@ class DubinsCar(SimpleCar):
                         continue
                 goals[i] = candidate
                 i += 1
+                
+                
+            folders = "/home/stud/li0/gcbf-pytorch/test_dataset_extend"
+            n_i = 20
+            n_j = 0
+            test_data = torch.empty((0,n_i+n_j,8))
+            
+            if isinstance(folders, str):
+                folders = [folders]
+            else:
+                assert isinstance(folders, list), \
+                    "invalid input of data folders, should be string of list or string"
+            
+            for folder in folders:
+                test_data_path = os.path.join(folder, f"test_data_vehicle={n_i}_obstalce={n_j}.pt")
+                if os.path.exists(test_data_path):
+                    test_data = torch.cat((test_data, torch.load(test_data_path).type(torch.float32)))
+                    
+            test_data = test_data[scenario_id]
+            states = test_data[:,:2].to(self.device)/10
+            goals = test_data[:, 4:6].to(self.device)/10
+            
+            
 
             # add velocity and heading
             states = torch.cat([states, torch.zeros(self.num_agents, 2, device=self.device)], dim=1)

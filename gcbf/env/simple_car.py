@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+import os
 
 from typing import Tuple, Optional, Union
 from torch import Tensor
@@ -68,7 +69,7 @@ class SimpleCar(MultiAgentEnv):
         return {
             'm': 1.0,  # mass of the car
             'comm_radius': 1.0,  # communication radius
-            'car_radius': 0.05,  # radius of the cars
+            'car_radius': 0.05,  # radius of the cars TODO: variable
             'dist2goal': 0.04,  # goal reaching threshold
             'speed_limit': 0.8,  # maximum speed
             'max_distance': 4.0,  # maximum moving distance to goal
@@ -88,40 +89,61 @@ class SimpleCar(MultiAgentEnv):
         else:
             return torch.cat([x[:, 2:], u], dim=1)
 
-    def reset(self) -> Data:
+    def reset(self, goals_path=None, scenario_id=None) -> Data:
         self._t = 0
         side_length = self._params['area_size']
         states = torch.zeros(self.num_agents, 2, device=self.device)
         goals = torch.zeros(self.num_agents, 2, device=self.device)
 
-        if self._mode == 'train' or self._mode == 'test' or self._mode == 'demo_2':
-            # randomly generate positions of agents
-            i = 0
-            while i < self.num_agents:
-                candidate = torch.rand(2, device=self.device) * side_length
-                dist_min = torch.norm(states - candidate, dim=1).min()
-                if dist_min <= self._params['car_radius'] * 4:
-                    continue
-                states[i] = candidate
-                i += 1
-
-            # randomly generate goals of agents
-            i = 0
-            while i < self.num_agents:
-                if self._mode == 'demo_2':
-                    candidate = (torch.rand(2, device=self.device) * 2 - 1) * self._params['max_distance'] + states[i]
-                    if (candidate > self._params['area_size']).any() or (candidate < 0).any():
-                        continue
-                else:
+        if goals_path is None:
+            if self._mode == 'train' or self._mode == 'test' or self._mode == 'demo_2':
+                # randomly generate positions of agents
+                i = 0
+                while i < self.num_agents:
                     candidate = torch.rand(2, device=self.device) * side_length
-                dist_min = torch.norm(goals - candidate, dim=1).min()
-                if dist_min <= self._params['car_radius'] * 4:
-                    continue
-                goals[i] = candidate
-                i += 1
-        else:
-            raise ValueError('Reset environment: unknown type of mode!')
+                    dist_min = torch.norm(states - candidate, dim=1).min()
+                    if dist_min <= self._params['car_radius'] * 4:
+                        continue
+                    states[i] = candidate
+                    i += 1
 
+                # randomly generate goals of agents
+                i = 0
+                while i < self.num_agents:
+                    if self._mode == 'demo_2':
+                        candidate = (torch.rand(2, device=self.device) * 2 - 1) * self._params['max_distance'] + states[i]
+                        if (candidate > self._params['area_size']).any() or (candidate < 0).any():
+                            continue
+                    else:
+                        candidate = torch.rand(2, device=self.device) * side_length
+                    dist_min = torch.norm(goals - candidate, dim=1).min()
+                    if dist_min <= self._params['car_radius'] * 4:
+                        continue
+                    goals[i] = candidate
+                    i += 1
+            else:
+                raise ValueError('Reset environment: unknown type of mode!')
+        else: # load test scenarios
+            folders = "/home/stud/li0/storage/user/dataset/test_dataset_extend"
+            n_i = 20
+            n_j = 0
+            test_data = torch.empty((0,n_i+n_j,8))
+            
+            if isinstance(folders, str):
+                folders = [folders]
+            else:
+                assert isinstance(folders, list), \
+                    "invalid input of data folders, should be string of list or string"
+            
+            for folder in folders:
+                test_data_path = os.path.join(folder, f"test_data_vehicle={n_i}_obstalce={n_j}.pt")
+                if os.path.exists(test_data_path):
+                    test_data = torch.cat((test_data, torch.load(test_data_path).type(torch.float32)))
+                    
+            test_data = test_data[scenario_id]
+            states = test_data[:,:2].to(self.device)/5
+            goals = test_data[:, 4:6].to(self.device)/5
+                       
         # add velocity
         states = torch.cat([states, torch.zeros(self.num_agents, 2, device=self.device)], dim=1)
 
@@ -226,7 +248,14 @@ class SimpleCar(MultiAgentEnv):
             y_interval = self._xy_max[1] - self._xy_min[1]
             ax.set_xlim(self._xy_min[0], self._xy_min[0] + max(x_interval, y_interval))
             ax.set_ylim(self._xy_min[1], self._xy_min[1] + max(x_interval, y_interval))
-            plt.axis('off')
+            
+            # plt.axis('off')
+            # Ensure that axis ticks and labels are visible
+            ax.xaxis.set_visible(True)
+            ax.yaxis.set_visible(True)
+
+            plt.axis('on')  # Ensure that the axis is turned on
+            
 
             if return_ax:
                 return ax

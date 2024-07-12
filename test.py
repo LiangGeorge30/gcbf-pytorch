@@ -43,6 +43,8 @@ def test(args):
         params['num_obs'] = args.obs
     if args.sense_radius is not None:
         params['comm_radius'] = args.sense_radius
+    if args.car_radius is not None:
+        params['car_radius'] = args.car_radius
     env = make_env(
         env=settings['env'] if args.env is None else args.env,
         num_agents=settings['num_agents'] if args.num_agents is None else args.num_agents,
@@ -104,7 +106,7 @@ def test(args):
     for i in range(args.epi):
         print(f'epi: {i}')
         results.append(
-            eval_ctrl_epi(apply, env, np.random.randint(100000), not args.no_video, plot_edge=not args.no_edge)
+            eval_ctrl_epi(apply, env, np.random.randint(100000), not args.no_video, plot_edge=not args.no_edge, scenario_id=i)
         )
     rewards, lengths, video, info = zip(*results)
     video = sum(video, ())
@@ -190,12 +192,14 @@ if __name__ == '__main__':
     parser.add_argument('--demo', type=int, default=None)
     parser.add_argument('--env', type=str, default=None)
     parser.add_argument('--iter', type=int, default=None)
-    parser.add_argument('--epi', type=int, default=5)
+    parser.add_argument('--epi', type=int, default=1)
     parser.add_argument('--no-video', action='store_true', default=False)
     parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--no-edge', action='store_true', default=False)
     parser.add_argument('--write_traj', type=str, default=None)
     parser.add_argument('--rand', type=float, default=30)
+    
+    parser.add_argument('--car-radius', type=float, default=None)
 
     # default
     parser.add_argument('--seed', type=int, default=0)

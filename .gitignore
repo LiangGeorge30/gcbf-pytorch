@@ -9,3 +9,5 @@ test.sh
 test_log.csv
 videos/
 *.egg-info/
+*.whl
+trained_model/
